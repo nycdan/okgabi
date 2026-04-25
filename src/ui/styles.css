@@ -101,7 +101,8 @@ button:disabled {
 .sideRail,
 .profileCard,
 .actionCard,
-.replyLab {
+.replyLab,
+.profileEditor {
   border: 1px solid var(--line);
   border-radius: 1.5rem;
   background: var(--panel);
@@ -126,6 +127,16 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.buttonStack {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: end;
+}
+
+.buttonStack small {
+  color: var(--muted);
+}
+
 .primary {
   background: var(--accent);
   color: #21140d;
@@ -137,7 +148,8 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
-.replyLab {
+.replyLab,
+.profileEditor {
   margin-bottom: 1rem;
   padding: 1rem;
 }
@@ -212,6 +224,30 @@ textarea {
   min-height: 15rem;
   resize: vertical;
   direction: auto;
+}
+
+textarea.shortTextarea {
+  min-height: 6rem;
+}
+
+.profileEditorGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profileEditorColumn {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.answerBankColumn textarea {
+  min-height: 7.5rem;
 }
 
 .labOutput {

@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "node:crypto";
 import { defaultSettings, defaultStyleProfile } from "../config/styleProfile";
 import { createSeedStore } from "../data/seed";
 import { calculateOutcomeMetrics } from "../scoring/outcomes";
@@ -112,7 +112,7 @@ export class JsonStore {
     const store = await this.read();
     const complete: AgentAction = {
       ...action,
-      id: uuid(),
+      id: randomUUID(),
       createdAt: new Date().toISOString()
     };
     store.actions.push(complete);
@@ -120,7 +120,7 @@ export class JsonStore {
 
     if (complete.status === "sent" && complete.finalReply) {
       store.messages.push({
-        id: uuid(),
+        id: randomUUID(),
         matchId: complete.matchId,
         sender: "me",
         text: complete.finalReply,
@@ -202,7 +202,7 @@ function buildCounts(matches: Match[]): DashboardSnapshot["counts"] {
 
 function audit(eventType: AuditEvent["eventType"], detail: string, payload?: Record<string, unknown>): AuditEvent {
   return {
-    id: uuid(),
+    id: randomUUID(),
     eventType,
     detail,
     payload,

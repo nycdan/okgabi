@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DashboardSnapshot, LeadScore, Match, MatchStage, Message } from "../types/domain";
+import type { DashboardSnapshot, GabiProfile, LeadScore, Match, MatchStage, Message } from "../types/domain";
 
 interface ReplyLabResult {
   match: Match;
@@ -30,6 +30,16 @@ const stageLabels: Record<MatchStage | "total", string> = {
   paused: "Paused"
 };
 
+type GabiProfileForm = Omit<GabiProfile, "age" | "languages" | "personality" | "interests" | "favoriteSpots" | "logistics" | "hardNoClaims"> & {
+  age: string;
+  languages: string;
+  personality: string;
+  interests: string;
+  favoriteSpots: string;
+  logistics: string;
+  hardNoClaims: string;
+};
+
 export function App() {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>();
   const [selectedId, setSelectedId] = useState<string>();
@@ -41,6 +51,9 @@ export function App() {
     "me: היי מה קורה\nher: סבבה חחח בדיוק יצאתי מקפה עם חברה\nme: וואלה נשמע אש\nher: כן היה ממש כיף תאמת"
   );
   const [labResult, setLabResult] = useState<ReplyLabResult>();
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSavedAt, setProfileSavedAt] = useState<string>();
+  const [profileForm, setProfileForm] = useState<GabiProfileForm>();
 
   const selected = useMemo(
     () => snapshot?.matches.find((match) => match.id === selectedId) ?? snapshot?.matches[0],
@@ -86,11 +99,47 @@ export function App() {
     }
   }
 
+  async function saveGabiProfile() {
+    if (!profileForm) return;
+    setProfileSaving(true);
+    try {
+      const payload = {
+        gabiProfile: {
+          ...profileForm,
+          age: profileForm.age ? Number(profileForm.age) : undefined,
+          languages: textToList(profileForm.languages),
+          personality: textToList(profileForm.personality),
+          interests: textToList(profileForm.interests),
+          favoriteSpots: textToList(profileForm.favoriteSpots),
+          logistics: textToList(profileForm.logistics),
+          hardNoClaims: textToList(profileForm.hardNoClaims)
+        }
+      };
+      const response = await fetch("/api/style-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const next = (await response.json()) as DashboardSnapshot;
+      setSnapshot(next);
+      setProfileForm(toProfileForm(next.styleProfile.gabiProfile));
+      setProfileSavedAt(new Date().toLocaleTimeString());
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   useEffect(() => {
     refresh();
     const interval = window.setInterval(refresh, 15_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (snapshot && !profileForm) {
+      setProfileForm(toProfileForm(snapshot.styleProfile.gabiProfile));
+    }
+  }, [profileForm, snapshot]);
 
   if (!snapshot) return <main className="loading">Loading the lead room...</main>;
 
@@ -211,6 +260,115 @@ export function App() {
           </div>
         </div>
       </section>
+
+      {profileForm && (
+        <section className="profileEditor">
+          <div className="labHeader">
+            <div>
+              <p className="eyebrow">Gabi Profile Editor</p>
+              <h2>Edit what the agent knows about you.</h2>
+              <p>These values feed answers like “what do you do?”, “where do you live?”, and “tell me about yourself?”.</p>
+            </div>
+            <div className="buttonStack">
+              {profileSavedAt && <small>Saved at {profileSavedAt}</small>}
+              <button className="primary" disabled={profileSaving} onClick={saveGabiProfile}>
+                {profileSaving ? "Saving..." : "Save Profile"}
+              </button>
+            </div>
+          </div>
+
+          <div className="profileEditorGrid">
+            <div className="profileEditorColumn">
+              <label>
+                Display name
+                <input value={profileForm.displayName} onChange={(event) => updateProfile("displayName", event.target.value)} />
+              </label>
+              <label>
+                Age
+                <input value={profileForm.age} onChange={(event) => updateProfile("age", event.target.value)} />
+              </label>
+              <label>
+                Current location
+                <input value={profileForm.currentLocation} onChange={(event) => updateProfile("currentLocation", event.target.value)} />
+              </label>
+              <label>
+                Hometown
+                <input value={profileForm.hometown ?? ""} onChange={(event) => updateProfile("hometown", event.target.value)} />
+              </label>
+              <label>
+                Languages
+                <input value={profileForm.languages} onChange={(event) => updateProfile("languages", event.target.value)} />
+              </label>
+              <label>
+                Work
+                <textarea className="shortTextarea" value={profileForm.work} onChange={(event) => updateProfile("work", event.target.value)} />
+              </label>
+              <label>
+                Short bio
+                <textarea className="shortTextarea" value={profileForm.shortBio} onChange={(event) => updateProfile("shortBio", event.target.value)} />
+              </label>
+            </div>
+
+            <div className="profileEditorColumn">
+              <label>
+                Personality
+                <textarea className="shortTextarea" value={profileForm.personality} onChange={(event) => updateProfile("personality", event.target.value)} />
+              </label>
+              <label>
+                Interests
+                <textarea className="shortTextarea" value={profileForm.interests} onChange={(event) => updateProfile("interests", event.target.value)} />
+              </label>
+              <label>
+                Favorite spots
+                <textarea className="shortTextarea" value={profileForm.favoriteSpots} onChange={(event) => updateProfile("favoriteSpots", event.target.value)} />
+              </label>
+              <label>
+                Dating intent
+                <textarea className="shortTextarea" value={profileForm.datingIntent} onChange={(event) => updateProfile("datingIntent", event.target.value)} />
+              </label>
+              <label>
+                Logistics
+                <textarea className="shortTextarea" value={profileForm.logistics} onChange={(event) => updateProfile("logistics", event.target.value)} />
+              </label>
+              <label>
+                Never invent / hard no claims
+                <textarea className="shortTextarea" value={profileForm.hardNoClaims} onChange={(event) => updateProfile("hardNoClaims", event.target.value)} />
+              </label>
+            </div>
+
+            <div className="profileEditorColumn answerBankColumn">
+              <label>
+                Answer: about me
+                <textarea value={profileForm.answerBank.aboutMe} onChange={(event) => updateAnswer("aboutMe", event.target.value)} />
+              </label>
+              <label>
+                Answer: work
+                <textarea value={profileForm.answerBank.work} onChange={(event) => updateAnswer("work", event.target.value)} />
+              </label>
+              <label>
+                Answer: location
+                <textarea value={profileForm.answerBank.location} onChange={(event) => updateAnswer("location", event.target.value)} />
+              </label>
+              <label>
+                Answer: hobbies
+                <textarea value={profileForm.answerBank.hobbies} onChange={(event) => updateAnswer("hobbies", event.target.value)} />
+              </label>
+              <label>
+                Answer: looking for
+                <textarea value={profileForm.answerBank.lookingFor} onChange={(event) => updateAnswer("lookingFor", event.target.value)} />
+              </label>
+              <label>
+                Answer: weekend
+                <textarea value={profileForm.answerBank.weekend} onChange={(event) => updateAnswer("weekend", event.target.value)} />
+              </label>
+              <label>
+                Unknown answer fallback
+                <textarea value={profileForm.unknownAnswer} onChange={(event) => updateProfile("unknownAnswer", event.target.value)} />
+              </label>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="workspace">
         <aside className="leadList">
@@ -339,4 +497,42 @@ export function App() {
       </section>
     </main>
   );
+
+  function updateProfile<K extends keyof GabiProfileForm>(key: K, value: GabiProfileForm[K]) {
+    setProfileForm((current) => (current ? { ...current, [key]: value } : current));
+  }
+
+  function updateAnswer<K extends keyof GabiProfile["answerBank"]>(key: K, value: GabiProfile["answerBank"][K]) {
+    setProfileForm((current) =>
+      current
+        ? {
+            ...current,
+            answerBank: {
+              ...current.answerBank,
+              [key]: value
+            }
+          }
+        : current
+    );
+  }
+}
+
+function toProfileForm(profile: GabiProfile): GabiProfileForm {
+  return {
+    ...profile,
+    age: profile.age?.toString() ?? "",
+    languages: profile.languages.join(", "),
+    personality: profile.personality.join(", "),
+    interests: profile.interests.join(", "),
+    favoriteSpots: profile.favoriteSpots.join(", "),
+    logistics: profile.logistics.join("\n"),
+    hardNoClaims: profile.hardNoClaims.join("\n")
+  };
+}
+
+function textToList(value: string): string[] {
+  return value
+    .split(/\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
