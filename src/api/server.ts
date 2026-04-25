@@ -44,10 +44,38 @@ app.post("/api/settings", async (request, response) => {
 });
 
 app.post("/api/style-profile", async (request, response) => {
+  const gabiProfileSchema = z.object({
+    displayName: z.string().optional(),
+    age: z.number().positive().optional(),
+    currentLocation: z.string().optional(),
+    hometown: z.string().optional(),
+    languages: z.array(z.string()).optional(),
+    work: z.string().optional(),
+    education: z.string().optional(),
+    shortBio: z.string().optional(),
+    personality: z.array(z.string()).optional(),
+    interests: z.array(z.string()).optional(),
+    favoriteSpots: z.array(z.string()).optional(),
+    datingIntent: z.string().optional(),
+    logistics: z.array(z.string()).optional(),
+    hardNoClaims: z.array(z.string()).optional(),
+    answerBank: z
+      .object({
+        aboutMe: z.string().optional(),
+        work: z.string().optional(),
+        location: z.string().optional(),
+        hobbies: z.string().optional(),
+        lookingFor: z.string().optional(),
+        weekend: z.string().optional()
+      })
+      .optional(),
+    unknownAnswer: z.string().optional()
+  });
   const schema = z.object({
     igHandle: z.string().min(1).optional(),
     tone: z.array(z.string()).optional(),
     maxMessageCharacters: z.number().min(40).max(600).optional(),
+    gabiProfile: gabiProfileSchema.optional(),
     boundaries: z.array(z.string()).optional(),
     bannedPhrases: z.array(z.string()).optional(),
     preferredClosers: z.array(z.string()).optional(),

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { v4 as uuid } from "uuid";
+import { defaultSettings, defaultStyleProfile } from "../config/styleProfile";
 import { createSeedStore } from "../data/seed";
 import { calculateOutcomeMetrics } from "../scoring/outcomes";
 import { scoreLead } from "../scoring/rubric";
@@ -17,12 +18,18 @@ import type {
 
 const STORE_PATH = resolve(process.cwd(), "data/store.json");
 
+type StyleProfilePatch = Partial<Omit<StyleProfile, "gabiProfile">> & {
+  gabiProfile?: Partial<Omit<StyleProfile["gabiProfile"], "answerBank">> & {
+    answerBank?: Partial<StyleProfile["gabiProfile"]["answerBank"]>;
+  };
+};
+
 export class JsonStore {
   constructor(private readonly storePath = STORE_PATH) {}
 
   async read(): Promise<StoreShape> {
     try {
-      return JSON.parse(await readFile(this.storePath, "utf8")) as StoreShape;
+      return migrateStore(JSON.parse(await readFile(this.storePath, "utf8")) as StoreShape);
     } catch {
       const seed = createSeedStore();
       await this.write(seed);
@@ -64,9 +71,20 @@ export class JsonStore {
     return store;
   }
 
-  async updateStyleProfile(styleProfile: Partial<StyleProfile>): Promise<StoreShape> {
+  async updateStyleProfile(styleProfile: StyleProfilePatch): Promise<StoreShape> {
     const store = await this.read();
-    store.styleProfile = { ...store.styleProfile, ...styleProfile };
+    store.styleProfile = {
+      ...store.styleProfile,
+      ...styleProfile,
+      gabiProfile: {
+        ...store.styleProfile.gabiProfile,
+        ...styleProfile.gabiProfile,
+        answerBank: {
+          ...store.styleProfile.gabiProfile.answerBank,
+          ...styleProfile.gabiProfile?.answerBank
+        }
+      }
+    };
     store.auditEvents.push(audit("manual_override", "Style profile updated."));
     await this.write(store);
     return store;
@@ -189,5 +207,29 @@ function audit(eventType: AuditEvent["eventType"], detail: string, payload?: Rec
     detail,
     payload,
     timestamp: new Date().toISOString()
+  };
+}
+
+function migrateStore(store: StoreShape): StoreShape {
+  return {
+    ...store,
+    settings: { ...defaultSettings, ...store.settings },
+    styleProfile: {
+      ...defaultStyleProfile,
+      ...store.styleProfile,
+      gabiProfile: {
+        ...defaultStyleProfile.gabiProfile,
+        ...store.styleProfile?.gabiProfile,
+        answerBank: {
+          ...defaultStyleProfile.gabiProfile.answerBank,
+          ...store.styleProfile?.gabiProfile?.answerBank
+        }
+      }
+    },
+    matches: store.matches ?? [],
+    messages: store.messages ?? [],
+    scores: store.scores ?? [],
+    actions: store.actions ?? [],
+    auditEvents: store.auditEvents ?? []
   };
 }

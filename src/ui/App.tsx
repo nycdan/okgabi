@@ -306,6 +306,20 @@ export function App() {
             <span>Tone</span>
             <p>{snapshot.styleProfile.tone.join(", ")}</p>
           </div>
+          <div className="sectionTitle">Gabi Profile</div>
+          <div className="profileCard">
+            <span>About</span>
+            <strong>{snapshot.styleProfile.gabiProfile.displayName}</strong>
+            <p>{snapshot.styleProfile.gabiProfile.shortBio}</p>
+          </div>
+          <div className="profileCard">
+            <span>Work</span>
+            <p>{snapshot.styleProfile.gabiProfile.work}</p>
+          </div>
+          <div className="profileCard">
+            <span>Interests</span>
+            <p>{snapshot.styleProfile.gabiProfile.interests.slice(0, 8).join(", ")}</p>
+          </div>
           <div className="profileCard">
             <span>Guardrails</span>
             {snapshot.styleProfile.boundaries.slice(0, 4).map((boundary) => (

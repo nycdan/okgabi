@@ -81,12 +81,39 @@ export interface StyleProfile {
   igHandle: string;
   tone: string[];
   maxMessageCharacters: number;
+  gabiProfile: GabiProfile;
   boundaries: string[];
   bannedPhrases: string[];
   preferredClosers: string[];
   writingSamples: string[];
   goodReplyExamples: string[];
   badReplyExamples: string[];
+}
+
+export interface GabiProfile {
+  displayName: string;
+  age?: number;
+  currentLocation: string;
+  hometown?: string;
+  languages: string[];
+  work: string;
+  education?: string;
+  shortBio: string;
+  personality: string[];
+  interests: string[];
+  favoriteSpots: string[];
+  datingIntent: string;
+  logistics: string[];
+  hardNoClaims: string[];
+  answerBank: {
+    aboutMe: string;
+    work: string;
+    location: string;
+    hobbies: string;
+    lookingFor: string;
+    weekend: string;
+  };
+  unknownAnswer: string;
 }
 
 export interface AuditEvent {

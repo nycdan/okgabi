@@ -125,17 +125,71 @@ function createContextualReply(text: string, styleProfile: StyleProfile): string
 function createDirectQuestionReply(text: string, styleProfile: StyleProfile): string | undefined {
   const normalized = text.trim();
   if (/what (are|r) (you|u) looking for|מה אתה מחפש|מה מחפש|מה אתה רוצה/i.test(normalized)) {
-    const reply = hasHebrew(normalized)
-      ? "וואלה לא משהו מסובך\nוייב טוב ולראות לאן זה הולך\nמה איתך?"
-      : "Honestly nothing too dramatic\nGood vibe and see where it goes\nWhat about you?";
-    return personalize(reply, styleProfile);
+    return personalize(answerInLanguage(normalized, styleProfile.gabiProfile.answerBank.lookingFor), styleProfile);
   }
 
   if (/do you have (ig|instagram)|what'?s your (ig|instagram)|יש לך אינסט|מה האינסט/i.test(normalized)) {
     return personalize(`כןן\n${styleProfile.igHandle}`, styleProfile);
   }
 
+  const profileAnswer = answerProfileQuestion(normalized, styleProfile);
+  if (profileAnswer) return personalize(profileAnswer, styleProfile);
+
   return undefined;
+}
+
+function answerProfileQuestion(text: string, styleProfile: StyleProfile): string | undefined {
+  const profile = styleProfile.gabiProfile;
+
+  if (/tell me about yourself|about you|who are you|ספר על עצמך|מי אתה|קצת עליך/i.test(text)) {
+    return answerInLanguage(text, profile.answerBank.aboutMe);
+  }
+
+  if (/where do you live|where are you from|location|איפה אתה גר|מאיפה אתה|איפה אתה/i.test(text)) {
+    return answerInLanguage(text, profile.answerBank.location);
+  }
+
+  if (/what do you do for fun|hobbies|interests|free time|תחביב|מה עושה לכיף|מה אתה עושה לכיף|בזמן הפנוי/i.test(text)) {
+    return answerInLanguage(text, profile.answerBank.hobbies);
+  }
+
+  if (/what do you do|what'?s your job|work|job|career|מה אתה עושה|במה אתה עובד|עבודה/i.test(text)) {
+    return answerInLanguage(text, profile.answerBank.work);
+  }
+
+  if (/weekend|weekends|סופש|סוף שבוע/i.test(text)) {
+    return answerInLanguage(text, profile.answerBank.weekend);
+  }
+
+  if (/age|old are you|בן כמה/i.test(text) && profile.age) {
+    return hasHebrew(text) ? `${profile.age}` : `${profile.age}`;
+  }
+
+  if (/school|college|university|לומד|איפה למדת|תואר/i.test(text)) {
+    if (profile.education && !profile.education.toLowerCase().includes("fill this in")) {
+      return answerInLanguage(text, profile.education);
+    }
+    return answerInLanguage(text, profile.unknownAnswer);
+  }
+
+  return undefined;
+}
+
+function answerInLanguage(question: string, hebrewishAnswer: string): string {
+  if (hasHebrew(question)) return hebrewishAnswer;
+  const englishAnswers: Record<string, string> = {
+    [hebrewishAnswer]: hebrewishAnswer
+  };
+  if (hebrewishAnswer.includes("וייב טוב")) return "Honestly nothing too dramatic\nGood vibe and see where it goes\nWhat about you?";
+  if (hebrewishAnswer.includes("אני גבי")) {
+    return "Short version?\nI'm Gabi, I build things on the internet, drink too much coffee, and like beach/food/conversations that don't feel like a job interview";
+  }
+  if (hebrewishAnswer.includes("בונה תוכנה")) return "I build software/web stuff\nNo idea how to make that sound less nerdy 😂";
+  if (hebrewishAnswer.includes("ניו יורק")) return "I'm kind of between New York and Israel depending on the season";
+  if (hebrewishAnswer.includes("ים, קפה")) return "Beach, coffee, gym, building stuff on my computer\nand pretending I'm not competitive";
+  if (hebrewishAnswer.includes("מול מחשב")) return "If I'm not on my computer then probably coffee/beach/food/friends\nsomething like that";
+  if (hebrewishAnswer.includes("שאלה טובה")) return "Hahaha good question\nI need to answer that like a person, not off the top of my head";
+  return englishAnswers[hebrewishAnswer] ?? hebrewishAnswer;
 }
 
 function personalize(text: string, styleProfile: StyleProfile): string {
