@@ -1,0 +1,51 @@
+---
+description: Project guide for future Cursor agents working on Okgabi
+alwaysApply: true
+---
+
+# Okgabi Project Guide
+
+This is a local OkCupid assistant for Gabi. It runs on his computer, opens OkCupid through Playwright, scores conversations, drafts replies in Gabi's voice, and only offers Instagram after required interest gates pass.
+
+## Safety Defaults
+
+- Keep automation in `review` mode unless the user explicitly asks for `auto`.
+- `review` proposes replies but does not send them.
+- Never remove guardrails around rejection, discomfort, scams, money, sensitive topics, hostile tone, private info, or repeated IG pitching.
+- Do not invent facts about Gabi. Use `styleProfile.gabiProfile`; if a fact is missing, answer lightly or defer.
+- Runtime/private data must stay out of git: `.browser/`, `data/store.json`, `.env`, screenshots, WhatsApp exports.
+
+## Key Files
+
+- `src/config/styleProfile.ts`: default seed profile, voice, guardrails, and Gabi facts.
+- `data/store.json`: live local profile/settings/thread state, ignored by git.
+- `src/style/replyAgent.ts`: reply generation, IG handoff wording, direct question/profile answers.
+- `src/scoring/rubric.ts`: lead scoring, gates, penalties, stage decisions.
+- `src/agent/policyGuard.ts`: blocks unsafe or off-style replies.
+- `src/automation/okcupidAdapter.ts`: Playwright OkCupid login/thread/message extraction/sending.
+- `src/agent/agentLoop.ts`: ingest, score, generate, guard, propose/send loop.
+- `src/ui/App.tsx`: dashboard, Reply Lab, Gabi Profile Editor.
+- `src/storage/jsonStore.ts`: JSON persistence and migrations.
+- `scripts/openOkCupid.ts`: persistent browser login helper.
+- `scripts/prepareLiveStore.ts`: clears demo data and sets `review` mode.
+- `scripts/setMode.ts`: sets `paused`, `review`, or `auto`.
+
+## Common Commands
+
+```bash
+npm run dev                 # API + dashboard
+npm run build               # typecheck and build
+npm run simulate            # seeded simulator
+npm run data:prepare-live   # clear demo data, set review mode
+npm run okcupid:login       # open persistent OkCupid browser profile
+npm run mode -- review      # safe mode
+npm run agent:once          # one automation pass
+npm run agent:loop          # continuous loop
+```
+
+## Development Notes
+
+- Dashboard edits to Gabi's profile are saved in `data/store.json`, not back to `styleProfile.ts`.
+- If changing `StyleProfile` or `GabiProfile`, update `src/storage/jsonStore.ts` migration logic.
+- If OkCupid import fails, inspect selectors in `src/automation/okcupidAdapter.ts`.
+- After substantive edits, run `npm run build` and relevant simulator/API smoke tests.
