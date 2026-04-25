@@ -10,6 +10,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "simulate": "tsx scripts/simulate.ts",
+    "data:prepare-live": "tsx scripts/prepareLiveStore.ts",
+    "mode": "tsx scripts/setMode.ts",
+    "okcupid:login": "tsx scripts/openOkCupid.ts",
     "agent:once": "tsx src/agent/agentLoop.ts --once",
     "agent:loop": "tsx src/agent/agentLoop.ts",
     "playwright:install": "playwright install chromium"

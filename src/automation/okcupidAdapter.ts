@@ -1,9 +1,11 @@
+import { resolve } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright";
 import { v5 as uuidv5 } from "uuid";
 import type { Match, Message } from "../types/domain";
 
 const OKCUPID_URL = "https://www.okcupid.com/messages";
 const UUID_NAMESPACE = "3e9a9eac-4c6c-4db2-8f39-9d264f58e0b6";
+export const OKCUPID_USER_DATA_DIR = resolve(process.env.OKCUPID_USER_DATA_DIR ?? ".browser/okcupid");
 
 export interface OkCupidThread {
   match: Match;
@@ -14,7 +16,7 @@ export class OkCupidAdapter {
   private context?: BrowserContext;
 
   async open(): Promise<Page> {
-    this.context = await chromium.launchPersistentContext(process.env.OKCUPID_USER_DATA_DIR ?? ".browser/okcupid", {
+    this.context = await chromium.launchPersistentContext(OKCUPID_USER_DATA_DIR, {
       headless: process.env.OKCUPID_HEADLESS === "true",
       viewport: { width: 1440, height: 1000 }
     });
@@ -30,38 +32,44 @@ export class OkCupidAdapter {
 
   async readThreads(limit = 12): Promise<OkCupidThread[]> {
     const page = await this.open();
-    if (page.url().includes("login")) {
-      throw new Error("OkCupid login required. Open the browser profile, log in manually, then rerun the agent.");
+    try {
+      if (page.url().includes("login")) {
+        throw new Error(`OkCupid login required. Run npm run okcupid:login and log in manually. Profile: ${OKCUPID_USER_DATA_DIR}`);
+      }
+
+      const threadLinks = await page
+        .locator("a[href*='/messages/'], a[href*='conversation']")
+        .evaluateAll((links) =>
+          Array.from(new Set(links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean))).slice(0, 12)
+        )
+        .catch(() => []);
+
+      const threads: OkCupidThread[] = [];
+      for (const href of threadLinks.slice(0, limit)) {
+        await page.goto(href, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(1000);
+        const thread = await this.extractCurrentThread(page);
+        if (thread.messages.length > 0) threads.push(thread);
+      }
+
+      return threads;
+    } finally {
+      await this.close();
     }
-
-    const threadLinks = await page
-      .locator("a[href*='/messages/'], a[href*='conversation']")
-      .evaluateAll((links) =>
-        Array.from(new Set(links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean))).slice(0, 12)
-      )
-      .catch(() => []);
-
-    const threads: OkCupidThread[] = [];
-    for (const href of threadLinks.slice(0, limit)) {
-      await page.goto(href, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1000);
-      const thread = await this.extractCurrentThread(page);
-      if (thread.messages.length > 0) threads.push(thread);
-    }
-
-    await this.close();
-    return threads;
   }
 
   async sendMessage(platformId: string, text: string): Promise<void> {
     const page = await this.open();
-    const threadUrl = platformId.startsWith("http") ? platformId : `${OKCUPID_URL}/${platformId}`;
-    await page.goto(threadUrl, { waitUntil: "domcontentloaded" });
-    const textbox = page.locator("textarea, [contenteditable='true'], input[type='text']").last();
-    await textbox.fill(text);
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(500);
-    await this.close();
+    try {
+      const threadUrl = platformId.startsWith("http") ? platformId : `${OKCUPID_URL}/${platformId}`;
+      await page.goto(threadUrl, { waitUntil: "domcontentloaded" });
+      const textbox = page.locator("textarea, [contenteditable='true'], input[type='text']").last();
+      await textbox.fill(text);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(500);
+    } finally {
+      await this.close();
+    }
   }
 
   private async extractCurrentThread(page: Page): Promise<OkCupidThread> {
