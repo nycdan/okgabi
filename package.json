@@ -12,15 +12,18 @@
     "simulate": "tsx scripts/simulate.ts",
     "data:prepare-live": "tsx scripts/prepareLiveStore.ts",
     "mode": "tsx scripts/setMode.ts",
+    "chrome:debug": "tsx scripts/openChrome.ts",
     "okcupid:login": "tsx scripts/openOkCupid.ts",
     "agent:once": "tsx src/agent/agentLoop.ts --once",
     "agent:loop": "tsx src/agent/agentLoop.ts",
     "playwright:install": "playwright install chromium"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "latest",
     "cors": "latest",
+    "dotenv": "^17.4.2",
     "express": "latest",
     "playwright": "latest",
     "react": "latest",

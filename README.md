@@ -1,202 +1,217 @@
 # Okgabi
 
-Local OkCupid assistant for Gabi. It runs on your computer, keeps a local dashboard, scores conversations, drafts replies in Gabi's voice, and only offers Instagram when the conversation passes the handoff rules.
+Local OkCupid assistant for Gabi. Runs entirely on your computer. Connects to your real Chrome window, reads conversations, scores them, and drafts replies in Gabi's voice using Claude AI. Offers Instagram only when a conversation passes the required interest gates.
 
-Important: start in `review` mode. In review mode the agent reads conversations and proposes replies, but it does not send anything.
+**Three modes:**
+- `review` — reads conversations and proposes replies. Nothing is sent. Start here.
+- `auto` — sends replies that pass scoring and guardrails automatically.
+- `paused` — agent is stopped. Dashboard still works.
+
+---
 
 ## Requirements
 
 - macOS
 - Node.js 18 or newer
-- npm
-- GitHub SSH access to `git@github.com:nycdan/okgabi.git`
+- Google Chrome installed
+- An Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
 
-Check Node/npm:
-
-```bash
-node --version
-npm --version
-```
+---
 
 ## Install
-
-Clone and install dependencies:
 
 ```bash
 git clone git@github.com:nycdan/okgabi.git
 cd okgabi
 npm install
-npm run playwright:install
 ```
 
-## Start The Dashboard
+---
+
+## Environment Setup
+
+Copy the example env file and fill in your API key:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OKCUPID_HEADLESS=false
+```
+
+`.env` is gitignored and never committed.
+
+---
+
+## First Run
+
+### 1. Open Chrome with debugging enabled
+
+```bash
+npm run chrome:debug
+```
+
+This launches Google Chrome on port 9222 and opens OkCupid. Log into OkCupid if you aren't already. **Leave Chrome open** — the agent attaches to this window every run.
+
+You only need to do this once per machine session. If Chrome is already open with debugging enabled, this command will tell you so and exit.
+
+### 2. Start the dashboard
 
 ```bash
 npm run dev
 ```
 
-Open:
-
-```text
-http://127.0.0.1:5173
-```
+Open: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 The API runs at `http://127.0.0.1:4177`.
 
-## First-Time Setup
+### 3. Configure Gabi's profile
 
-1. Open the dashboard.
-2. Edit **Gabi Profile Editor**.
-3. Fill in anything the agent should know:
-   - age
-   - current location
-   - work
-   - short bio
-   - interests
-   - dating intent
-   - answer bank for common questions
-4. Click **Save Profile**.
-5. Use **Reply Lab** to test messages before going live.
+1. Open the dashboard → **Gabi Profile Editor**
+2. Fill in anything the agent should know: age, location, work, short bio, interests, dating intent, answer bank for common questions
+3. Click **Save Profile**
 
-Dashboard edits are saved locally in `data/store.json`. The file is intentionally ignored by git because it is personal runtime data.
+Profile edits are saved to `data/store.json` (gitignored).
 
-## Reply Lab
+### 4. Test in Reply Lab
 
-Use Reply Lab to test tone and answers.
+Use the Reply Lab tab to test Claude's replies before going live:
 
-Example:
-
-```text
+```
 me: היי מה קורה
 her: What are you looking for?
 ```
 
-The lab replies to the latest `her:` message and shows:
+The lab calls Claude and shows: the proposed reply, score, action type, guardrail result, and IG handoff gates.
 
-- score
-- action type
-- suggested reply
-- guardrail result
-- IG handoff gates
-- score rationale
-
-## Operating Modes
-
-- `paused`: dashboard works, automation does not run.
-- `review`: reads OkCupid, scores threads, proposes replies, does not send.
-- `auto`: sends replies that pass score and guardrails.
-
-Set mode from terminal:
-
-```bash
-npm run mode -- paused
-npm run mode -- review
-npm run mode -- auto
-```
-
-Use `review` until real imported conversations look right.
-
-## Login To OkCupid
-
-Open the persistent browser profile:
-
-```bash
-npm run okcupid:login
-```
-
-Log in manually. When your OkCupid messages are visible, close the browser window. The login session is kept in `.browser/okcupid`.
-
-`.browser/okcupid` is ignored by git because it contains local browser session data.
-
-## Safe Live Run
-
-Prepare a clean live store and keep the agent in review mode:
-
-```bash
-npm run data:prepare-live
-npm run okcupid:login
-npm run mode -- review
-npm run agent:once
-```
-
-Then open the dashboard and inspect the imported threads and proposed replies.
-
-If everything looks good, run another pass:
+### 5. Run one agent pass (review mode)
 
 ```bash
 npm run agent:once
 ```
 
-Only after multiple review runs look correct should you switch to auto:
+The agent reads your OkCupid threads, scores them, asks Claude to generate replies in Gabi's voice, and shows them in the dashboard. Nothing is sent in `review` mode.
+
+### 6. Go live
+
+When the proposals look right across multiple passes:
 
 ```bash
 npm run mode -- auto
-npm run agent:once
-```
-
-For continuous automation:
-
-```bash
 npm run agent:loop
 ```
 
-Stop it with `Ctrl+C`.
+The loop runs every 90 seconds. Stop it with `Ctrl+C`.
+
+---
+
+## How It Works
+
+```
+Chrome (CDP) → okcupidAdapter.ts
+                     ↓
+              reads threads + messages
+                     ↓
+              jsonStore.ts (upsert)
+                     ↓
+              rubric.ts (lead score)
+                     ↓
+              claudeReplyAgent.ts (Claude API)
+                     ↓
+              policyGuard.ts (guardrails)
+                     ↓
+         review → propose to dashboard
+         auto   → sendMessage via CDP
+```
+
+### Reply generation
+
+`src/style/claudeReplyAgent.ts` sends Claude (`claude-sonnet-4-6`) the full style profile: tone guidelines, writing samples, good/bad reply examples, conversation history, lead score, and IG threshold. Claude outputs JSON with `actionType`, `text`, and `reason`. If the API call fails for any reason, it falls back to the template system in `src/style/replyAgent.ts`.
+
+### Chrome connection
+
+`src/automation/okcupidAdapter.ts` connects to Chrome via `chromium.connectOverCDP()` on port 9222. It finds the existing OkCupid tab (or navigates to it), reads message threads, and sends messages through the real browser — no detectable automation browser.
+
+### Scoring
+
+`src/scoring/rubric.ts` scores each conversation 0–100 across: reciprocity, enthusiasm, momentum, specific connection, intent signal, and safety/trust. Hard stops (rejection, scams, sensitive topics, hostile tone) block the agent entirely and require manual review. Instagram is offered only when score ≥ threshold AND all required gates pass.
+
+### Guardrails
+
+`src/agent/policyGuard.ts` blocks replies that contain banned phrases, pressure language, hard-stop context, sensitive topics, or exceed the character limit — regardless of what Claude generated.
+
+---
 
 ## Common Commands
 
 ```bash
-npm run dev                 # API + dashboard
-npm run build               # typecheck and production build
-npm run simulate            # seeded simulator scenarios
-npm run data:prepare-live   # clear demo data and set review mode
-npm run okcupid:login       # open persistent OkCupid browser
-npm run mode -- review      # safe proposed-replies mode
+npm run chrome:debug        # launch Chrome with debugging (do this first, every session)
+npm run dev                 # API + dashboard (http://127.0.0.1:5173)
 npm run agent:once          # one automation pass
-npm run agent:loop          # continuous automation loop
+npm run agent:loop          # continuous loop (every 90s)
+npm run mode -- review      # safe proposed-replies mode
+npm run mode -- auto        # live sending mode
+npm run mode -- paused      # stop automation
+npm run data:prepare-live   # clear demo data, reset to review mode
+npm run simulate            # run seeded simulator scenarios
+npm run build               # typecheck + production build
 ```
 
-## Guardrails
+---
 
-The agent blocks or pauses for:
+## Key Files
 
-- rejection or discomfort
-- scam/verification/money signals
-- hostile tone
-- sensitive topics
-- unsafe/private information requests
-- pressure language
-- repeated IG pitching
+| File | Purpose |
+|------|---------|
+| `src/config/styleProfile.ts` | Default seed profile — voice, tone, Gabi facts, writing samples, guardrails |
+| `data/store.json` | Live runtime state — profile, threads, scores, actions (gitignored) |
+| `src/style/claudeReplyAgent.ts` | **Claude-powered reply generation** — main reply engine |
+| `src/style/replyAgent.ts` | Template-based fallback reply engine |
+| `src/scoring/rubric.ts` | Lead scoring, IG gates, stage derivation |
+| `src/agent/policyGuard.ts` | Guardrails — blocks unsafe or off-voice replies |
+| `src/automation/okcupidAdapter.ts` | Chrome CDP connection, thread reading, message sending |
+| `src/agent/agentLoop.ts` | Main loop: ingest → score → generate → guard → propose/send |
+| `src/api/server.ts` | Express API for dashboard + Reply Lab |
+| `src/ui/App.tsx` | React dashboard: thread list, audit trail, Reply Lab, Profile Editor |
+| `src/storage/jsonStore.ts` | JSON persistence and schema migrations |
+| `scripts/openChrome.ts` | Launches Chrome with remote debugging on port 9222 |
+| `scripts/prepareLiveStore.ts` | Clears demo data, sets review mode |
+| `scripts/setMode.ts` | Sets paused / review / auto |
 
-Every decision is logged in `data/store.json` and shown in the dashboard audit trail.
+---
 
 ## Troubleshooting
 
-If no threads import:
+**Agent can't connect to Chrome:**
+Run `npm run chrome:debug`. If Chrome is already open without debugging, quit it first and re-run.
 
-1. Run `npm run okcupid:login`.
-2. Confirm the browser shows OkCupid messages.
-3. Close the browser.
-4. Run `npm run agent:once`.
+**OkCupid shows a login screen:**
+Log into OkCupid in the Chrome window opened by `chrome:debug`. The session persists in `.browser/chrome-debug/`.
 
-If replies sound wrong:
+**No threads imported:**
+Make sure OkCupid messages are open in the Chrome window. Navigate to `okcupid.com/messages` manually if needed, then re-run `npm run agent:once`.
 
-1. Edit **Gabi Profile Editor**.
-2. Test in **Reply Lab**.
-3. Keep mode as `review`.
+**Replies sound wrong:**
+Edit the Gabi Profile in the dashboard. Test in Reply Lab. Stay in `review` mode until the voice sounds right.
 
-If OkCupid changes its UI and message extraction breaks, update selectors in:
+**OkCupid changes its UI and message extraction breaks:**
+Update selectors in `src/automation/okcupidAdapter.ts` → `extractCurrentThread()`.
 
-```text
-src/automation/okcupidAdapter.ts
-```
+**Claude API errors / fallback to templates:**
+Check that `ANTHROPIC_API_KEY` is set correctly in `.env`. The agent falls back to templates automatically if Claude is unavailable.
 
-## Privacy Notes
+---
 
-Do not commit:
+## Privacy
 
-- `.browser/`
-- `data/store.json`
-- `.env`
-- screenshots or exports with private conversations
+Never commit:
+- `.browser/` — Chrome session data
+- `data/store.json` — conversations and personal data
+- `.env` — API keys
+- Screenshots or exports with private conversations
 
-Those are already ignored by `.gitignore`.
+All of the above are already in `.gitignore`.

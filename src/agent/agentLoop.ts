@@ -1,6 +1,7 @@
+import "dotenv/config";
 import { OkCupidAdapter } from "../automation/okcupidAdapter";
 import { guardReply } from "./policyGuard";
-import { generateReply } from "../style/replyAgent";
+import { generateReplyWithClaude } from "../style/claudeReplyAgent";
 import { JsonStore } from "../storage/jsonStore";
 
 const store = new JsonStore();
@@ -28,7 +29,7 @@ export async function runAgentOnce() {
     const lastMessage = messages.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp)).at(-1);
     if (!lastMessage || lastMessage.sender !== "match") continue;
 
-    const reply = generateReply(match, messages, score, refreshed.styleProfile, refreshed.settings.igReadyThreshold);
+    const reply = await generateReplyWithClaude(match, messages, score, refreshed.styleProfile, refreshed.settings.igReadyThreshold);
     if (!reply.text || reply.actionType === "noop") {
       actions.push(await store.recordAction({
         matchId: match.id,
